@@ -42,12 +42,14 @@ pub struct InitializeQuestion<'info> {
         payer = payer, // the authority variable will hold the payer for this account creation
         space = 8      // all accounts require minimum 8 bytes
                 + 32   // public key space
-                + 560  // 560 bytes: 140 character count for content
-                + 320  // 320 bytes: max 4 answer choices: max 20 character count for each
+                + Question::MAX_SIZE       // Question size
+                + (4 + 4*Answer::MAX_SIZE) // Vector of 4 Answers
     )]
     pub question: Account<'info, Question>,
     #[account(mut)]
     pub authority: Signer<'info>, // this signer
+    /// CHECK: this account is not written to or read from so it's safe
+    #[account(mut)]
     pub payer: AccountInfo<'info>, // this account will pay for the transaction
     pub system_program: Program<'info, System>
 }
@@ -56,7 +58,34 @@ pub struct InitializeQuestion<'info> {
 pub struct AnswerQuestion<'info> {
     #[account(mut)]
     pub solver: Account<'info, Solver>,
+    /// CHECK: this account is not written to or read from so it's safe
+    #[account(mut)]
     pub payer: AccountInfo<'info>
+}
+
+#[derive(Accounts)]
+pub struct InitializeCounter<'info> {
+    #[account(
+        init, 
+        seeds = [b"question-count"],
+        bump,
+        payer = payer,
+        space = 8 + 1 + 1
+    )]
+    pub counter: Account<'info, QuestionCounter>,
+    /// CHECK: this is not dangerous because we do not read or write to this account
+    #[account(mut)]
+    pub payer: AccountInfo<'info>,
+    pub system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct IncrementCounter<'info> {
+    #[account(mut, seeds = [b"question-count"], bump)]
+    pub counter: Account<'info, QuestionCounter>,
+
+    #[account(seeds = [&counter.count.to_le_bytes(), authority.key().as_ref()], bump)]
+    pub authority: Account<'info, Question>
 }
 
 
@@ -66,11 +95,13 @@ pub struct InitializeSolver<'info> {
         init,
         payer = payer,
         space = 8
-                + 1600 // 32 bytes per public key : 50 questions max answered
+                + Solver::MAX_SIZE // 32 bytes per public key : 50 questions max answered
     )]
     pub solver: Account<'info, Solver>,
     #[account(mut)]
     pub authority: Signer<'info>,
+    /// CHECK: this account is not written to or read from so it's safe
+    #[account(mut)]
     pub payer: AccountInfo<'info>,
     pub system_program: Program<'info, System>
 
@@ -85,6 +116,12 @@ pub struct Question {
     bump: u8,
 }
 
+impl Question {
+    // 32 bytes for Pubkey
+    // 4 + 70 bytes for content string
+    const MAX_SIZE: usize = 32 + (4 + 70);
+}
+
 #[account]
 #[derive(Default)]
 pub struct Solver {
@@ -92,8 +129,27 @@ pub struct Solver {
     answered: Vec<Pubkey> // a set of the public keys of Questions
 }
 
+impl Solver {
+    // 32 bytes for Pubkey
+    // 4 + (32 * 10) for 10 questions
+    const MAX_SIZE: usize = 32 + (4 + 10*32);
+}
+
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct Answer {
     content: String,
     correct: bool
+}
+
+impl Answer {
+    pub const MAX_SIZE: usize = 4 + 20 + 1;
+}
+
+
+#[account]
+#[derive(Default)]
+pub struct QuestionCounter {
+    count: u8,
+    bump: u8
 }
