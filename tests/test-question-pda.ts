@@ -18,6 +18,26 @@ describe('test-question-pda', () => {
 
  let questionAccount;
  let solverAccount;
+ let questionCounter;
+
+ before(async () => {
+  let questionCountBump;
+  [questionCounter, questionCountBump] = await anchor.web3.PublicKey.findProgramAddress(
+    [anchor.utils.bytes.utf8.encode("question-count")], programId
+  );
+});
+
+it('Initialize Question Counter', async () => {
+  console.log("\n\n⚙⚙ Initializing Question Counter");
+  const tx = await program.methods.initializeCounter()
+      .accounts({
+        counter: questionCounter,
+        payer: program.provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId
+      }).rpc();
+  
+  console.log(tx);
+});
 
  it('Initialize Question', async () => {
    console.log("\n\n⚙⚙ Initializing Question");
@@ -30,10 +50,15 @@ describe('test-question-pda', () => {
    const answerC = new Answer('4', true);
    const answerD = new Answer('3', false);
    const answers = [answerA, answerB, answerC, answerD]; // answers array - these don't need to be serialized, anchor does it for us :)
+
+   // get current question count
+   let questionCount = (await program.account.questionCounter.fetch(questionCounter)).count;
    let questionAccountBump;
  
+   console.log(questionCount);
+
    [questionAccount, questionAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
-     [Buffer.from(questionContent), asker.publicKey.toBuffer()],
+     [new anchor.BN(questionCount).toBuffer() , asker.publicKey.toBuffer()],
      programId
    );
 
@@ -41,7 +66,8 @@ describe('test-question-pda', () => {
    console.log(questionAccount.toBase58());
    const tx = await program.methods.initializeQuestion(questionContent, answers)
      .accounts({
-       question: questionAccount.toBase58(),
+       question: questionAccount,
+       questionCounter: questionCounter,
        authority: asker.publicKey,
        payer: program.provider.wallet.publicKey,
        systemProgram: anchor.web3.SystemProgram.programId

@@ -17,6 +17,18 @@ pub mod test_question_pda {
         Ok(())
     }
 
+    pub fn initialize_counter(ctx: Context<InitializeCounter>) -> ProgramResult {
+        let counter = &mut ctx.accounts.counter;
+        
+        counter.bump = *ctx.bumps.get("counter").unwrap();
+        Ok(())
+    }
+
+    pub fn increment_counter(ctx: Context<IncrementCounter>) -> ProgramResult {
+        ctx.accounts.counter.count += 1;
+        Ok(())
+    }
+
     pub fn initialize_solver(ctx: Context<InitializeSolver>) -> ProgramResult {
 
         let solver = &mut ctx.accounts.solver;
@@ -33,11 +45,10 @@ pub mod test_question_pda {
 
 #[derive(Accounts)]
 // #[instruction(...)]: allows access to the instruction's arguments : must be in the same order as listed but remaining can be omitted after the last one you need
-#[instruction(question_content: String)] // https://docs.rs/anchor-lang/latest/anchor_lang/derive.Accounts.html
 pub struct InitializeQuestion<'info> {
     #[account(
         init,          // hey anchor, initialize an account w/ these details (rent exempted)
-        seeds = [&question_content.as_ref(), authority.key().as_ref()],
+        seeds = [&question_counter.count.to_le_bytes(), authority.key().as_ref()],
         bump,          // hey anchor find the canonical bump for me
         payer = payer, // the authority variable will hold the payer for this account creation
         space = 8      // all accounts require minimum 8 bytes
@@ -46,8 +57,13 @@ pub struct InitializeQuestion<'info> {
                 + (4 + 4*Answer::MAX_SIZE) // Vector of 4 Answers
     )]
     pub question: Account<'info, Question>,
+
+    #[account(mut, seeds = [b"question-count"], bump = question_counter.bump)]
+    pub question_counter: Account<'info, QuestionCounter>,
+
     #[account(mut)]
     pub authority: Signer<'info>, // this signer
+
     /// CHECK: this account is not written to or read from so it's safe
     #[account(mut)]
     pub payer: AccountInfo<'info>, // this account will pay for the transaction
