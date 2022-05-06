@@ -29,12 +29,12 @@ pub mod test_question_pda {
         Ok(())
     }
 
-    pub fn initialize_solver(ctx: Context<InitializeSolver>) -> ProgramResult {
+    // pub fn initialize_solver(ctx: Context<InitializeSolver>) -> ProgramResult {
 
-        let solver = &mut ctx.accounts.solver;
-        solver.user = ctx.accounts.authority.key(); // set the user to the authority's public key
-        Ok(())
-    }
+    //     let solver = &mut ctx.accounts.solver;
+    //     solver.user = ctx.accounts.authority.key(); // set the user to the authority's public key
+    //     Ok(())
+    // }
 
     pub fn answer_question(ctx: Context<AnswerQuestion>, question: Pubkey) -> ProgramResult {
         let solver = &mut ctx.accounts.solver;
@@ -89,7 +89,7 @@ pub struct InitializeCounter<'info> {
         space = 8 + 1 + 1
     )]
     pub counter: Account<'info, QuestionCounter>,
-    /// CHECK: this is not dangerous because we do not read or write to this account
+    /// CHECK: this account is not written to or read from so it's safe
     #[account(mut)]
     pub payer: AccountInfo<'info>,
     pub system_program: Program<'info, System>
@@ -100,7 +100,7 @@ pub struct IncrementCounter<'info> {
     #[account(mut, seeds = [b"question-count"], bump)]
     pub counter: Account<'info, QuestionCounter>,
 
-    #[account(seeds = [&counter.count.to_le_bytes(), authority.key().as_ref()], bump)]
+    #[account(seeds = [&counter.count.to_le_bytes(), authority.asker.as_ref()], bump)]
     pub authority: Account<'info, Question>
 }
 
@@ -141,8 +141,8 @@ impl Question {
 #[account]
 #[derive(Default)]
 pub struct Solver {
-    user: Pubkey,
-    answered: Vec<Pubkey> // a set of the public keys of Questions
+    answered: Vec<Pubkey>, // a set of the public keys of Questions
+    bump: u8
 }
 
 impl Solver {
